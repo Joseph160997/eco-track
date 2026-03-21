@@ -76,13 +76,13 @@ const renderForm = () => {
      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
        
        <div class="flex flex-col gap-2">
-         <label class="text-sm font-bold text-slate-700">Descripción</label>
+         <label for="description" class="text-sm font-bold text-slate-700">Descripcion</label>
          <input type="text" id="description" placeholder="Ej: Comida" 
                 class="p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500">
        </div>
 
        <div class="flex flex-col gap-2">
-         <label class="text-sm font-bold text-slate-700">Cantidad</label>
+         <label for ="amount" class="text-sm font-bold text-slate-700">Cantidad</label>
          <input type="number" id="amount" placeholder="$0.00" 
                 class="p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500">
        </div>
@@ -125,9 +125,16 @@ const setupEvenlisteners = () => {
     const amountInput = document.querySelector<HTMLInputElement>("#amount");
     const typeInput = document.querySelector<HTMLSelectElement>("#type");
 
+    const amount = Number(amountInput?.value);
+
     // 2. Validacion Senior: si falta algún dato, mostramos alerta y cortamos la ejecución (return).
-    if (!descriptionInput?.value || !amountInput?.value || !typeInput?.value) {
+    if (!descriptionInput?.value.trim() || !typeInput?.value) {
       alert("Por favor, completa todos los campos.");
+      return;
+    }
+
+    if (amount <= 0) {
+      alert("La cantidad debe ser mayor a 0.");
       return;
     }
 
@@ -235,13 +242,14 @@ const renderList = () => {
   listContainer.innerHTML = listHTML;
 };
 
-// Funcion Para eleiminar las transacciones.(window as any).deleteTransaction = (id: string) => {
+// Funcion Para eleiminar las transacciones
+(window as any).deleteTransaction = (id: string) => {
   // 1. filtramos todo el array: dejamos pasar las transacciones menos las que tenemos que eliminar.
   allTransactions = allTransactions.filter((t) => t.id !== id);
 
   // 2. Actualizamos la interfaz inmediatamente.
-  updateBalance(); // Recalcula los números de arriba.
   renderList(); // Dibuja la nueva lista de abajo.
+  updateBalance(); // Recalcula los números de arriba.
 
   // 3. Guardamos en el localStorage.
   saveToLocalStorage();
