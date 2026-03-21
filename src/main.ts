@@ -142,7 +142,7 @@ const setupEvenlisteners = () => {
     const newTransaction: Transaction = {
       id: crypto.randomUUID(), // Generamos un ID único universal.
       description: descriptionInput.value,
-      amount: Number(amountInput.value), // Convertimos el texto del input en un número real.
+      amount: amount, // Convertimos el texto del input en un número real.
       type: typeInput?.value as "expense" | "income", // Aserción de tipo para TypeScript.
       category: "General",
       date: new Date().toLocaleDateString(), // Fecha legible actual.
@@ -209,8 +209,19 @@ const renderList = () => {
   // 2. Limpiamos el listContainer para evitar que se repitan los elementos viejos.
   listContainer.innerHTML = "";
 
+  // 2.1: verfificamos si no hay transacciones, mostramos un mensaje amigable.
+  if (allTransactions.length === 0) {
+    listContainer.innerHTML = `
+    <p class="text-center text-slate-500 py-8 font-bold">
+      No hay transacciones para mostrar.
+    </p>`;
+
+    return;
+  }
+
   // 3. Mapeamos el array para convertir cada objeto en un bloque HTML.
   // Dentro de tu función renderList, en el .map:
+
   const listHTML = allTransactions
     .map(
       (t) => `
