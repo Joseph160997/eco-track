@@ -14,6 +14,8 @@ let allTransactions: Transaction[] = JSON.parse(
   localStorage.getItem("transactions") || "[]",
 );
 
+let editingId: string | null = null; // Almacena el ID de la transaccion que estamos editando | si no estamos editando, es null
+
 // app: El contenedor principal de nuestra aplicación en el index.html.
 const app = document.querySelector("#app") as HTMLElement;
 
@@ -138,18 +140,45 @@ const setupEvenlisteners = () => {
       return;
     }
 
-    // 3. Creamos La Nueva Transaccion siguiendo nuestra Interface de TypeScript.
-    const newTransaction: Transaction = {
-      id: crypto.randomUUID(), // Generamos un ID único universal.
-      description: descriptionInput.value,
-      amount: amount, // Convertimos el texto del input en un número real.
-      type: typeInput?.value as "expense" | "income", // Aserción de tipo para TypeScript.
-      category: "General",
-      date: new Date().toLocaleDateString(), // Fecha legible actual.
-    };
+    if (editingId) {
+      // MODO EDICION: Actualizamos la transaccion.
+      const index = allTransactions.findIndex((t) => t.id === editingId);
 
-    // 4. Guardanos en nuestro array global de transacciones.
-    allTransactions.push(newTransaction);
+      if (index !== -1) {
+        allTransactions[index] = {
+          ...allTransactions[index],
+          description: descriptionInput.value,
+          amount,
+          type: typeInput?.value as "expense" | "income",
+        };
+      }
+
+      // LIMPIAMOS LA VARIABLE GLOBAL DE EDICION, PARA SABER QUE NO ESTAMOS EN MODO EDICION.
+      editingId = null;
+
+      // Devolvemos el boton a su estado original de "AGREGAR TRANSACCION".
+      const submitButton = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]',
+      );
+
+      if (submitButton) {
+        submitButton.innerText = "Agregar Transacción";
+        submitButton.classList.replace("bg-blue-400", "bg-slate-900");
+      }
+    } else {
+      // 3. Creamos La Nueva Transaccion siguiendo nuestra Interface de TypeScript.
+      const newTransaction: Transaction = {
+        id: crypto.randomUUID(), // Generamos un ID único universal.
+        description: descriptionInput.value,
+        amount: amount, // Convertimos el texto del input en un número real.
+        type: typeInput?.value as "expense" | "income", // Aserción de tipo para TypeScript.
+        category: "General",
+        date: new Date().toLocaleDateString(), // Fecha legible actual.
+      };
+
+      // 4. Guardanos en nuestro array global de transacciones.
+      allTransactions.push(newTransaction);
+    }
 
     // Actualizamos la interfaz inmediatamente después de guardar el dato.
     updateBalance(); // Recalcula los números de arriba.
@@ -225,26 +254,34 @@ const renderList = () => {
   const listHTML = allTransactions
     .map(
       (t) => `
-  <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border-b border-slate-100 group">
-    <div class="flex items-center gap-4">
-      <button 
-        onclick="deleteTransaction('${t.id}')"
-        class="opacity-0 group-hover:opacity-100 text-rose-500 hover:scale-110 transition-all cursor-pointer"
-        title="Eliminar transacción"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+      <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border-b border-slate-100 group">
+        <div class="flex items-center gap-4">
+        <button 
+      onclick="prepareEdit('${t.id}')"
+      class="opacity-0 group-hover:opacity-100 text-blue-500 hover:scale-110 transition-all cursor-pointer"
+      title="Editar transacción">
+
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
       </button>
-      
-      <div>
-        <p class="font-bold text-slate-800">${t.description}</p>
-        <p class="text-sm text-slate-500">${t.date}</p>
+
+          <button 
+            onclick="deleteTransaction('${t.id}')"
+            class="opacity-0 group-hover:opacity-100 text-rose-500 hover:scale-110 transition-all cursor-pointer"
+            title="Eliminar transacción"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+          </button>
+          
+          <div>
+            <p class="font-bold text-slate-800">${t.description}</p>
+            <p class="text-sm text-slate-500">${t.date}</p>
+          </div>
+        </div>
+        
+        <span class="font-bold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}">
+          ${t.type === "income" ? "+" : "-"} $${t.amount.toFixed(2)}
+        </span>
       </div>
-    </div>
-    
-    <span class="font-bold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}">
-      ${t.type === "income" ? "+" : "-"} $${t.amount.toFixed(2)}
-    </span>
-  </div>
 `,
     )
     .join("");
@@ -264,6 +301,41 @@ const renderList = () => {
 
   // 3. Guardamos en el localStorage.
   saveToLocalStorage();
+};
+
+// Funcion para editar las transacciones.
+(window as any).prepareEdit = (id: string) => {
+  // 1. Buscamos la transaccion en nuestra array.
+  const transactionToEdit = allTransactions.find((t) => t.id === id);
+
+  // 2. Si no la encontramos, cortamos la ejecución.
+  if (!transactionToEdit) return;
+
+  // 3.Guardamos el ID de la transaccion que estamos editando en una variable global.
+  editingId = id;
+
+  // 4. Seleccionamos los input del formulario.
+  const descriptionInput =
+    document.querySelector<HTMLInputElement>("#description");
+  const amountInput = document.querySelector<HTMLInputElement>("#amount");
+  const typeInput = document.querySelector<HTMLSelectElement>("#type");
+  const submitButton = document.querySelector<HTMLButtonElement>(
+    "#transaction-form button[type='submit']",
+  );
+
+  // 5. Llenamos los inputs con los datos de la transaccion que estamos editando.
+  if (descriptionInput) descriptionInput.value = transactionToEdit.description;
+  if (amountInput) amountInput.value = transactionToEdit.amount.toString();
+  if (typeInput) typeInput.value = transactionToEdit.type;
+
+  // 6. Cambiamos el texto del boton para indicar que estamos editando.
+  if (submitButton) {
+    submitButton.innerText = "Editar Transacción";
+    submitButton?.classList.replace("bg-slate-900", "bg-amber-400");
+  }
+
+  // 7. Hacemos scroll hacia arriba para que el usuario vea el formulario.
+  window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 /**
