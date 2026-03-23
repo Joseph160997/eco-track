@@ -1,55 +1,51 @@
 /**
  * STEP 1: CONFIGURACIÓN E IMPORTACIONES
- * Traemos los estilos globales y las reglas (tipos) que debe seguir nuestro código.
  */
 import "./style.css";
 import type { Transaction } from "./types.ts";
 
 /**
- * STEP 2: ESTADO GLOBAL Y SELECCIÓN DE BASE
- * Definimos dónde vivirá la información y en qué parte del HTML vamos a "dibujar" nuestra App.
+ * STEP 2: ESTADO GLOBAL
  */
-// allTransactions: Es nuestra base de datos temporal en memoria.
+// Cargamos datos de localStorage o iniciamos array vacío.
 let allTransactions: Transaction[] = JSON.parse(
   localStorage.getItem("transactions") || "[]",
 );
 
-let editingId: string | null = null; // Almacena el ID de la transaccion que estamos editando | si no estamos editando, es null
+// Nuestro "semáforo" de edición.
+let editingId: string | null = null;
 
-// app: El contenedor principal de nuestra aplicación en el index.html.
 const app = document.querySelector("#app") as HTMLElement;
 
 /**
- * STEP 3: FUNCIONES DE RENDERIZADO (UI)
- * Estas funciones se encargan exclusivamente de "pintar" el HTML.
+ * STEP 3: FUNCIONES DE UTILIDAD Y UI
  */
 
-//Creamos una funcion para guardar las transacciones en el localStorage.
+// CORRECCIÓN: Nombre corregido de 'curreny' a 'currency'.
+// Este objeto es el estándar profesional para manejar dinero.
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
 const saveToLocalStorage = () => {
   localStorage.setItem("transactions", JSON.stringify(allTransactions));
 };
 
-// creamos una función para renderizar el encabezado
 const renderHeader = () => {
-  // verificamos que app no sea null (Cláusula de guarda para evitar errores)
   if (!app) return;
-
-  // Inyectamos el título principal con estilos de Tailwind
   app.innerHTML = `
    <h1 class="text-3xl font-bold text-slate-900 mb-8">Eco-track: Finanzas Inteligentes</h1>
   `;
 };
 
 const renderBalance = () => {
-  // Verificamos que app no sea null antes de intentar modificarlo
   if (!app) return;
-
-  // Usamos += para sumar al header sin borrar lo anterior.
-  // Aquí definimos los IDs que usaremos luego para actualizar los números.
+  // Definimos la estructura base. Los IDs nos permitirán actualizar los valores sin redibujar todo el HTML.
   app.innerHTML += `
    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
-     <p class="text-sm  text-slate-500 uppercase font-semibold">Saldo Total</p>
+     <p class="text-sm text-slate-500 uppercase font-semibold">Saldo Total</p>
      <h2 id="balance-total" class="text-2xl font-bold text-slate-800">$0.00</h2>
      </div> 
 
@@ -66,140 +62,105 @@ const renderBalance = () => {
   `;
 };
 
-// Funcion paa el formularrio.
 const renderForm = () => {
-  // Verificamos que app no sea null
   if (!app) return;
-
-  // Usamos += para añadir el formulario debajo del balance.
-  // Usamos un Grid de 2 columnas para que en PC se vea más organizado.
   app.innerHTML += `
    <form id="transaction-form" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mt-8">
      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-       
        <div class="flex flex-col gap-2">
-         <label for="description" class="text-sm font-bold text-slate-700">Descripcion</label>
+         <label for="description" class="text-sm font-bold text-slate-700">Descripción</label>
          <input type="text" id="description" placeholder="Ej: Comida" 
                 class="p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500">
        </div>
-
        <div class="flex flex-col gap-2">
-         <label for ="amount" class="text-sm font-bold text-slate-700">Cantidad</label>
+         <label for="amount" class="text-sm font-bold text-slate-700">Cantidad</label>
          <input type="number" id="amount" placeholder="$0.00" 
                 class="p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500">
        </div>
-       
        <div class="flex flex-col gap-2 md:col-span-2">
-         <label class="text-sm font-bold text-slate-700">Type</label>
-         <select id="type" class="p-2 border border-slate-200 text-sm font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500">
-           <option value="expense">Gastos</option>
-           <option value="income">Ingresos</option>
+         <label class="text-sm font-bold text-slate-700">Tipo</label>
+         <select id="type" class="p-2 border border-slate-200 text-sm font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer">
+           <option value="expense">Gasto</option>
+           <option value="income">Ingreso</option>
          </select>
        </div> 
-
      </div>
-     
-     <button type="submit" class="w-full mt-6 bg-slate-900 text-white py-2 rounded-lg hover:bg-slate-800 cursor-pointer">
-       Agregar Transacción
+     <button type="submit" class="w-full mt-6 bg-slate-900 text-white py-2 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer font-bold">
+       Agregar Transacción
      </button>
    </form>
-   
    <div id="list-container" class="mt-8 flex flex-col gap-4"></div>
    `;
 };
 
 /**
- * STEP 4: LÓGICA DE EVENTOS (INTERACTIVIDAD)
- * Aquí es donde capturamos lo que el usuario hace.
+ * STEP 4: LÓGICA DE EVENTOS
  */
-
-// Funcion para el formulario.
-const setupEvenlisteners = () => {
+// CORRECCIÓN: Nombre corregido de 'setupEvenlisteners' a 'setupEventListeners'.
+const setupEventListeners = () => {
   const form = document.querySelector<HTMLFormElement>("#transaction-form");
 
   form?.addEventListener("submit", (e) => {
-    // e.preventDefault(): Detenemos la recarga automática del navegador.
     e.preventDefault();
 
-    // 1. Obtenemos los datos actuales de cada input del formulario.
     const descriptionInput =
       document.querySelector<HTMLInputElement>("#description");
     const amountInput = document.querySelector<HTMLInputElement>("#amount");
     const typeInput = document.querySelector<HTMLSelectElement>("#type");
-
     const amount = Number(amountInput?.value);
 
-    // 2. Validacion Senior: si falta algún dato, mostramos alerta y cortamos la ejecución (return).
-    if (!descriptionInput?.value.trim() || !typeInput?.value) {
-      alert("Por favor, completa todos los campos.");
-      return;
-    }
-
-    if (amount <= 0) {
-      alert("La cantidad debe ser mayor a 0.");
+    // Validaciones de seguridad.
+    if (!descriptionInput?.value.trim() || !typeInput?.value || amount <= 0) {
+      alert("Por favor, introduce una descripción y una cantidad válida.");
       return;
     }
 
     if (editingId) {
-      // MODO EDICION: Actualizamos la transaccion.
+      // MODO EDICIÓN: Buscamos el índice para reemplazar el objeto viejo.
       const index = allTransactions.findIndex((t) => t.id === editingId);
-
       if (index !== -1) {
         allTransactions[index] = {
-          ...allTransactions[index],
-          description: descriptionInput.value,
+          ...allTransactions[index], // Mantenemos ID y Fecha originales.
+          description: descriptionInput.value.trim(),
           amount,
-          type: typeInput?.value as "expense" | "income",
+          type: typeInput.value as "expense" | "income",
         };
       }
+      editingId = null; // Salimos del modo edición.
 
-      // LIMPIAMOS LA VARIABLE GLOBAL DE EDICION, PARA SABER QUE NO ESTAMOS EN MODO EDICION.
-      editingId = null;
-
-      // Devolvemos el boton a su estado original de "AGREGAR TRANSACCION".
+      // Restauramos el botón a su estado original (Negro).
       const submitButton = form.querySelector<HTMLButtonElement>(
         'button[type="submit"]',
       );
-
       if (submitButton) {
         submitButton.innerText = "Agregar Transacción";
-        submitButton.classList.replace("bg-blue-400", "bg-slate-900");
+        // CORRECCIÓN: Usamos amber-400 que es el que pusimos en prepareEdit.
+        submitButton.classList.replace("bg-amber-400", "bg-slate-900");
       }
     } else {
-      // 3. Creamos La Nueva Transaccion siguiendo nuestra Interface de TypeScript.
+      // MODO CREACIÓN.
       const newTransaction: Transaction = {
-        id: crypto.randomUUID(), // Generamos un ID único universal.
-        description: descriptionInput.value,
-        amount: amount, // Convertimos el texto del input en un número real.
-        type: typeInput?.value as "expense" | "income", // Aserción de tipo para TypeScript.
+        id: crypto.randomUUID(),
+        description: descriptionInput.value.trim(),
+        amount,
+        type: typeInput.value as "expense" | "income",
         category: "General",
-        date: new Date().toLocaleDateString(), // Fecha legible actual.
+        date: new Date().toLocaleDateString(),
       };
-
-      // 4. Guardanos en nuestro array global de transacciones.
       allTransactions.push(newTransaction);
     }
 
-    // Actualizamos la interfaz inmediatamente después de guardar el dato.
-    updateBalance(); // Recalcula los números de arriba.
-    renderList(); // Dibuja la nueva lista de abajo.
-
-    // 5. Limpiamos El Formulario para dejarlo listo para la siguiente entrada.
+    updateBalance();
+    renderList();
     form.reset();
-
-    // 6. Guardamos en el localStorage.
     saveToLocalStorage();
   });
 };
 
 /**
  * STEP 5: CÁLCULOS MATEMÁTICOS
- * Procesa la información del array para obtener resultados útiles.
  */
-
-// Funcion Update Balance
 const updateBalance = () => {
-  // 1. Calculamos el balance filtrando y reduciendo el array.
   const incomeTotal = allTransactions
     .filter((t) => t.type === "income")
     .reduce((acc, t) => acc + t.amount, 0);
@@ -208,113 +169,80 @@ const updateBalance = () => {
     .filter((t) => t.type === "expense")
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // El saldo total es la diferencia simple.
   const balanceTotal = incomeTotal - expenseTotal;
 
-  // 2. Seleccionamos los elementos HTML donde mostraremos los resultados.
   const balanceElement = document.querySelector<HTMLElement>("#balance-total");
   const incomeElement = document.querySelector<HTMLElement>("#income-total");
   const expenseElement = document.querySelector<HTMLElement>("#expense-total");
 
-  // 3. Inyectamos los valores formateados con el símbolo de moneda y 2 decimales.
-  if (balanceElement) balanceElement.innerText = `$${balanceTotal.toFixed(2)}`;
-  if (incomeElement) incomeElement.innerText = `$${incomeTotal.toFixed(2)}`;
-  if (expenseElement) expenseElement.innerText = `$${expenseTotal.toFixed(2)}`;
+  // CORRECCIÓN: Aplicamos el currencyFormatter para que los totales se vean profesionales.
+  if (balanceElement)
+    balanceElement.innerText = currencyFormatter.format(balanceTotal);
+  if (incomeElement)
+    incomeElement.innerText = currencyFormatter.format(incomeTotal);
+  if (expenseElement)
+    expenseElement.innerText = currencyFormatter.format(expenseTotal);
 };
 
 /**
  * STEP 6: HISTORIAL VISUAL
- * Mapea los objetos del array a elementos visuales de la lista.
  */
-
-// Funcion RENDER-LIST para dibujar la lista de transacciones.
 const renderList = () => {
   const listContainer =
     document.querySelector<HTMLDivElement>("#list-container");
-
-  // 1. verificamos que listContainer no sea null antes de operar.
   if (!listContainer) return;
 
-  // 2. Limpiamos el listContainer para evitar que se repitan los elementos viejos.
   listContainer.innerHTML = "";
 
-  // 2.1: verfificamos si no hay transacciones, mostramos un mensaje amigable.
   if (allTransactions.length === 0) {
-    listContainer.innerHTML = `
-    <p class="text-center text-slate-500 py-8 font-bold">
-      No hay transacciones para mostrar.
-    </p>`;
-
+    listContainer.innerHTML = `<p class="text-center text-slate-500 py-8 font-bold">No hay transacciones aún.</p>`;
     return;
   }
 
-  // 3. Mapeamos el array para convertir cada objeto en un bloque HTML.
-  // Dentro de tu función renderList, en el .map:
-
-  const listHTML = allTransactions
+  listContainer.innerHTML = allTransactions
     .map(
       (t) => `
       <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border-b border-slate-100 group">
         <div class="flex items-center gap-4">
-        <button 
-      onclick="prepareEdit('${t.id}')"
-      class="opacity-0 group-hover:opacity-100 text-blue-500 hover:scale-110 transition-all cursor-pointer"
-      title="Editar transacción">
-
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-      </button>
-
-          <button 
-            onclick="deleteTransaction('${t.id}')"
-            class="opacity-0 group-hover:opacity-100 text-rose-500 hover:scale-110 transition-all cursor-pointer"
-            title="Eliminar transacción"
-          >
+          <button onclick="prepareEdit('${t.id}')" class="opacity-0 group-hover:opacity-100 text-blue-500 hover:scale-110 transition-all cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+          </button>
+          <button onclick="deleteTransaction('${t.id}')" class="opacity-0 group-hover:opacity-100 text-rose-500 hover:scale-110 transition-all cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
           </button>
-          
           <div>
             <p class="font-bold text-slate-800">${t.description}</p>
             <p class="text-sm text-slate-500">${t.date}</p>
           </div>
         </div>
-        
         <span class="font-bold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}">
-          ${t.type === "income" ? "+" : "-"} $${t.amount.toFixed(2)}
+          ${t.type === "income" ? "+" : "-"} ${currencyFormatter.format(t.amount)}
         </span>
       </div>
-`,
+    `,
     )
     .join("");
-
-  // 4. Inyectamos el HTML generado en el contenedor.
-  listContainer.innerHTML = listHTML;
 };
 
-// Funcion Para eleiminar las transacciones
+/**
+ * FUNCIONES GLOBALES (Acceso desde HTML)
+ */
 (window as any).deleteTransaction = (id: string) => {
-  // 1. filtramos todo el array: dejamos pasar las transacciones menos las que tenemos que eliminar.
+  // Mejora Senior: Confirmación antes de borrar.
+  if (!confirm("¿Seguro que quieres eliminar esta transacción?")) return;
+
   allTransactions = allTransactions.filter((t) => t.id !== id);
-
-  // 2. Actualizamos la interfaz inmediatamente.
-  renderList(); // Dibuja la nueva lista de abajo.
-  updateBalance(); // Recalcula los números de arriba.
-
-  // 3. Guardamos en el localStorage.
+  renderList();
+  updateBalance();
   saveToLocalStorage();
 };
 
-// Funcion para editar las transacciones.
 (window as any).prepareEdit = (id: string) => {
-  // 1. Buscamos la transaccion en nuestra array.
   const transactionToEdit = allTransactions.find((t) => t.id === id);
-
-  // 2. Si no la encontramos, cortamos la ejecución.
   if (!transactionToEdit) return;
 
-  // 3.Guardamos el ID de la transaccion que estamos editando en una variable global.
   editingId = id;
 
-  // 4. Seleccionamos los input del formulario.
   const descriptionInput =
     document.querySelector<HTMLInputElement>("#description");
   const amountInput = document.querySelector<HTMLInputElement>("#amount");
@@ -323,28 +251,24 @@ const renderList = () => {
     "#transaction-form button[type='submit']",
   );
 
-  // 5. Llenamos los inputs con los datos de la transaccion que estamos editando.
   if (descriptionInput) descriptionInput.value = transactionToEdit.description;
   if (amountInput) amountInput.value = transactionToEdit.amount.toString();
   if (typeInput) typeInput.value = transactionToEdit.type;
 
-  // 6. Cambiamos el texto del boton para indicar que estamos editando.
   if (submitButton) {
-    submitButton.innerText = "Editar Transacción";
-    submitButton?.classList.replace("bg-slate-900", "bg-amber-400");
+    submitButton.innerText = "Guardar Cambios";
+    submitButton.classList.replace("bg-slate-900", "bg-amber-400");
   }
 
-  // 7. Hacemos scroll hacia arriba para que el usuario vea el formulario.
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 /**
  * FINAL STEP: INICIALIZACIÓN
- * Ejecutamos las funciones en orden secuencial para arrancar la aplicación.
  */
 renderHeader();
 renderBalance();
 renderForm();
-setupEvenlisteners();
+setupEventListeners();
 renderList();
 updateBalance();
